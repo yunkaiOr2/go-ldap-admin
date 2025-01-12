@@ -109,13 +109,7 @@ func (l UserLogic) Add(c *gin.Context, req interface{}) (data interface{}, rspEr
 		user.Source = "platform"
 	}
 
-	// 获取用户将要添加的分组
-	groups, err := isql.Group.GetGroupByIds(tools.StringToSlice(user.DepartmentId, ","))
-	if err != nil {
-		return nil, tools.NewMySqlError(fmt.Errorf("根据部门ID获取部门信息失败" + err.Error()))
-	}
-
-	err = CommonAddUser(&user, groups)
+	err = CommonAddUser(&user, true, true)
 	if err != nil {
 		return nil, tools.NewOperationError(fmt.Errorf("添加用户失败" + err.Error()))
 	}
@@ -356,14 +350,25 @@ func (l UserLogic) ChangePwd(c *gin.Context, req interface{}) (data interface{},
 	if tools.NewParPasswd(user.Password) != r.OldPassword {
 		return nil, tools.NewValidatorError(fmt.Errorf("原密码错误"))
 	}
-	// ldap更新密码时可以直接指定用户DN和新密码即可更改成功
-	err = ildap.User.ChangePwd(user.UserDN, "", r.NewPassword)
-	if err != nil {
-		return nil, tools.NewLdapError(fmt.Errorf("在LDAP更新密码失败" + err.Error()))
+	if user.SyncState == model.UserSynced {
+		// ldap更新密码时可以直接指定用户DN和新密码即可更改成功
+		err = ildap.User.ChangePwd(user.UserDN, "", r.NewPassword)
+		if err != nil {
+			return nil, tools.NewLdapError(fmt.Errorf("在LDAP更新密码失败" + err.Error()))
+		}
+	} else {
+		err = CommonAddUser(&user, false, true)
+		if err != nil {
+			return nil, tools.NewLdapError(fmt.Errorf("在LDAP同步失败" + err.Error()))
+		}
 	}
+	user.Active = uint(model.UserActived)
+	user.SyncState = model.UserSynced
+	user.Password = tools.NewGenPasswd(r.NewPassword)
+	err = isql.User.Update(&user)
 
 	// 更新密码
-	err = isql.User.ChangePwd(user.Username, tools.NewGenPasswd(r.NewPassword))
+	// err = isql.User.ChangePwd(user.Username, tools.NewGenPasswd(r.NewPassword))
 	if err != nil {
 		return nil, tools.NewMySqlError(fmt.Errorf("在MySQL更新密码失败: " + err.Error()))
 	}

@@ -15,6 +15,13 @@ type UserService struct{}
 
 // 创建资源
 func (x UserService) Add(user *model.User) error {
+	isExist, err := x.Exist(tools.H{"cn": user.Username})
+	if err != nil {
+		return err
+	}
+	if isExist {
+		return nil
+	}
 	add := ldap.NewAddRequest(user.UserDN, nil)
 	add.Attribute("objectClass", []string{"inetOrgPerson"})
 	add.Attribute("cn", []string{user.Username})
@@ -85,7 +92,7 @@ func (x UserService) Exist(filter map[string]interface{}) (bool, error) {
 	for key, value := range filter {
 		filter_str += fmt.Sprintf("(%s=%s)", key, value)
 	}
-	search_filter := fmt.Sprintf("(&(|(objectClass=inetOrgPerson)(objectClass=simpleSecurityObject))%s)", filter_str)
+	search_filter := fmt.Sprintf("%s", filter_str)
 	// Construct query request
 	searchRequest := ldap.NewSearchRequest(
 		config.Conf.Ldap.BaseDN,                                     // This is basedn, we will start searching from this node.

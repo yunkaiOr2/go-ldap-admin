@@ -2,6 +2,19 @@ package model
 
 import "gorm.io/gorm"
 
+type UserSyncState = uint
+type UserActive = uint
+
+const (
+	UserSynced UserSyncState = iota + 1
+	UserNotSync
+)
+
+const (
+	UserNotActive UserActive = iota + 1
+	UserActived
+)
+
 type User struct {
 	gorm.Model
 	Username      string  `gorm:"type:varchar(50);not null;unique;comment:'用户名'" json:"username"`                    // 用户名
@@ -25,6 +38,7 @@ type User struct {
 	SourceUnionId string  `gorm:"type:varchar(100);not null;comment:'第三方唯一unionId'" json:"sourceUnionId"`            // 第三方唯一unionId
 	UserDN        string  `gorm:"type:varchar(255);not null;comment:'用户dn'" json:"userDn"`                           // 用户在ldap的dn
 	SyncState     uint    `gorm:"type:tinyint(1);default:1;comment:'同步状态:1已同步, 2未同步'" json:"syncState"`              // 数据到ldap的同步状态
+	Active        uint    `gorm:"type:tinyint(1);default:1;comment:'修改密码激活;激活状态:1未激活, 2已激活'" json:"active"`
 }
 
 func (u *User) SetUserName(userName string) {

@@ -6,6 +6,7 @@ import (
 	"github.com/eryajf/go-ldap-admin/config"
 	"github.com/eryajf/go-ldap-admin/model"
 	"github.com/eryajf/go-ldap-admin/model/request"
+	"github.com/eryajf/go-ldap-admin/public/common"
 	"github.com/eryajf/go-ldap-admin/public/tools"
 	"github.com/eryajf/go-ldap-admin/service/ildap"
 	"github.com/eryajf/go-ldap-admin/service/isql"
@@ -34,6 +35,10 @@ func (d *SqlLogic) SyncSqlUsers(c *gin.Context, req interface{}) (data interface
 	}
 	// 2.再将用户添加到ldap
 	for _, user := range users {
+		// 如果用户未激活，不添加
+		if user.Active == model.UserNotActive {
+			continue
+		}
 		err = ildap.User.Add(&user)
 		if err != nil {
 			return nil, tools.NewLdapError(fmt.Errorf("SyncUser向LDAP同步用户失败：" + err.Error()))
@@ -47,10 +52,11 @@ func (d *SqlLogic) SyncSqlUsers(c *gin.Context, req interface{}) (data interface
 			//根据选择的部门，添加到部门内
 			err = ildap.Group.AddUserToGroup(group.GroupDN, user.UserDN)
 			if err != nil {
-				return nil, tools.NewMySqlError(fmt.Errorf("向Ldap添加用户到分组关系失败：" + err.Error()))
+				// return nil, tools.NewMySqlError(fmt.Errorf("向Ldap添加用户到分组关系失败：" + err.Error()))
+				common.Log.Warnf("向Ldap添加用户%s到分组关系失败： %s", user.Username, err.Error())
 			}
 		}
-		err = isql.User.ChangeSyncState(int(user.ID), 1)
+		err = isql.User.ChangeSyncState(int(user.ID), int(model.UserSynced))
 		if err != nil {
 			return nil, tools.NewLdapError(fmt.Errorf("用户同步完毕之后更新状态失败：" + err.Error()))
 		}
@@ -148,7 +154,8 @@ func SearchUserDiff() (err error) {
 		if user.UserDN == config.Conf.Ldap.AdminDN {
 			continue
 		}
-		err = isql.User.ChangeSyncState(int(user.ID), 2)
+		err = isql.User.ChangeSyncState(int(user.ID), int(model.UserNotSync))
+
 	}
 	return
 }

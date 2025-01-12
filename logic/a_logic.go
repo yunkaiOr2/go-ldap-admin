@@ -3,6 +3,7 @@ package logic
 import (
 	"fmt"
 	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/eryajf/go-ldap-admin/config"
@@ -83,8 +84,29 @@ func CommonUpdateGroup(oldGroup, newGroup *model.Group) error {
 	return nil
 }
 
-// CommonAddUser 标准创建用户
-func CommonAddUser(user *model.User, groups []*model.Group) error {
+func CommonAddLdapUser(user *model.User, groups []*model.Group) error {
+	// 再将用户添加到ldap
+	err := ildap.User.Add(user)
+	if err != nil {
+		return tools.NewLdapError(fmt.Errorf("AddUser向LDAP创建用户失败：" + err.Error()))
+	}
+
+	// 处理用户归属的组
+	for _, group := range groups {
+		if group.GroupDN[:3] == "ou=" {
+			continue
+		}
+		//根据选择的部门，添加到部门内
+		err = ildap.Group.AddUserToGroup(group.GroupDN, user.UserDN)
+		if err != nil {
+			return tools.NewMySqlError(fmt.Errorf("向Ldap添加用户到分组关系失败：" + err.Error()))
+		}
+	}
+
+	return nil
+}
+
+func CommonAddSqlUser(user *model.User, groups []*model.Group) error {
 	// 用户信息的预置处理
 	if user.Nickname == "" {
 		user.Nickname = "佚名"
@@ -124,12 +146,6 @@ func CommonAddUser(user *model.User, groups []*model.Group) error {
 	if err != nil {
 		return tools.NewMySqlError(fmt.Errorf("向MySQL创建用户失败：" + err.Error()))
 	}
-	// 再将用户添加到ldap
-	err = ildap.User.Add(user)
-	if err != nil {
-		return tools.NewLdapError(fmt.Errorf("AddUser向LDAP创建用户失败：" + err.Error()))
-	}
-
 	// 处理用户归属的组
 	for _, group := range groups {
 		if group.GroupDN[:3] == "ou=" {
@@ -140,12 +156,38 @@ func CommonAddUser(user *model.User, groups []*model.Group) error {
 		if err != nil {
 			return tools.NewMySqlError(fmt.Errorf("向MySQL添加用户到分组关系失败：" + err.Error()))
 		}
-		//根据选择的部门，添加到部门内
-		err = ildap.Group.AddUserToGroup(group.GroupDN, user.UserDN)
+	}
+	return nil
+}
+
+// CommonAddUser 标准创建用户
+func CommonAddUser(user *model.User, newSqlUser, syncLdap bool) error {
+	// 获取用户将要添加的分组
+	groups, err := isql.Group.GetGroupByIds(tools.StringToSlice(user.DepartmentId, ","))
+	if err != nil {
+		return tools.NewMySqlError(fmt.Errorf("根据部门ID获取部门信息失败" + err.Error()))
+	}
+	var deptTmp string
+	for _, group := range groups {
+		deptTmp = deptTmp + group.GroupName + ","
+	}
+	user.Departments = strings.TrimRight(deptTmp, ",")
+
+	if newSqlUser {
+		if !syncLdap {
+			user.SyncState = model.UserNotSync
+		}
+		err = CommonAddSqlUser(user, groups)
 		if err != nil {
-			return tools.NewMySqlError(fmt.Errorf("向Ldap添加用户到分组关系失败：" + err.Error()))
+			return err
 		}
 	}
+
+	if syncLdap {
+		err = CommonAddLdapUser(user, groups)
+		return err
+	}
+
 	return nil
 }
 

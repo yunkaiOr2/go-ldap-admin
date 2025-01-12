@@ -148,19 +148,8 @@ func (d FeiShuLogic) AddUsers(user *model.User) error {
 
 	// 根据 user_dn 查询用户,不存在则创建
 	if !isql.User.Exist(tools.H{"user_dn": user.UserDN}) {
-		// 获取用户将要添加的分组
-		groups, err := isql.Group.GetGroupByIds(tools.StringToSlice(user.DepartmentId, ","))
-		if err != nil {
-			return tools.NewMySqlError(fmt.Errorf("根据部门ID获取部门信息失败" + err.Error()))
-		}
-		var deptTmp string
-		for _, group := range groups {
-			deptTmp = deptTmp + group.GroupName + ","
-		}
-		user.Departments = strings.TrimRight(deptTmp, ",")
-
 		// 添加用户
-		err = CommonAddUser(user, groups)
+		err = CommonAddUser(user, true, false)
 		if err != nil {
 			return tools.NewOperationError(fmt.Errorf("添加用户: %s, 失败: %s", user.Username, err.Error()))
 		}

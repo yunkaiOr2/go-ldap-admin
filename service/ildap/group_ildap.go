@@ -2,6 +2,7 @@ package ildap
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/eryajf/go-ldap-admin/config"
 	"github.com/eryajf/go-ldap-admin/model"
@@ -13,7 +14,14 @@ import (
 type GroupService struct{}
 
 // Add 添加资源
-func (x GroupService) Add(g *model.Group) error { //organizationalUnit
+func (x GroupService) Add(g *model.Group) error {
+	existed, err := x.Exist(g)
+	if err != nil {
+		return err
+	}
+	if existed {
+		return nil
+	} //organizationalUnit
 	if g.Remark == "" {
 		g.Remark = g.GroupName
 	}
@@ -36,6 +44,31 @@ func (x GroupService) Add(g *model.Group) error { //organizationalUnit
 	}
 
 	return conn.Add(add)
+}
+
+func (x GroupService) Exist(g *model.Group) (bool, error) {
+	// Construct query request
+	searchRequest := ldap.NewSearchRequest(
+		config.Conf.Ldap.BaseDN,                                     // This is basedn, we will start searching from this node.
+		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false, // Hereseveral parameters are respectively scope, derefAliases, sizeLimit, time
+		fmt.Sprintf("(|(%s=%s))", g.GroupType, g.GroupName), // This is Filter for LDAP query
+		[]string{"DN"}, // Here are the attributes returned by the query, provided as an array. If empty, all attributes are returned
+		nil)
+
+	// 获取 LDAP 连接
+	conn, err := common.GetLDAPConn()
+	defer common.PutLADPConn(conn)
+	if err != nil {
+		return false, err
+	}
+	var sr *ldap.SearchResult
+	// Search through ldap built-in search
+	sr, err = conn.Search(searchRequest)
+	if err != nil {
+		return false, err
+	}
+	return len(sr.Entries) > 0, nil
+
 }
 
 // UpdateGroup 更新一个分组
