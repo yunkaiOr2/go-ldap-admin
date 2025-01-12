@@ -27,7 +27,7 @@ func InitRoutes() *gin.Engine {
 	// r := gin.New()
 	// r.Use(gin.Recovery())
 
-	// r.Use(middleware.Serve("/", middleware.EmbedFolder(static.Static, "dist")))
+	r.Use(middleware.Serve("/", middleware.EmbedFolder(static.Static, "dist")))
 	r.NoRoute(func(c *gin.Context) {
 		data, err := static.Static.ReadFile("dist/index.html")
 		if err != nil {
