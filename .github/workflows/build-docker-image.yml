@@ -8,18 +8,18 @@ on:
     branches:
       - main
   release:
-    types: [created,published] # 表示在创建新的 Release 时触发
+    types: [created, published] # 表示在创建新的 Release 时触发
 
-# Allows you to run this workflow manually from the Actions tab
+  # Allows you to run this workflow manually from the Actions tab
   # 可以手动触发
   workflow_dispatch:
     inputs:
       logLevel:
-        description: 'Log level'
+        description: "Log level"
         required: true
-        default: 'warning'
+        default: "warning"
       tags:
-        description: 'Test scenario tags'
+        description: "Test scenario tags"
 
 jobs:
   buildx:
@@ -62,8 +62,8 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           # 给清单打上多个标签
           tags: |
-            eryajf/go-ldap-admin:latest
-            eryajf/go-ldap-admin:${{ steps.date.outputs.today }}
+            jianyunkai/go-ldap-admin:latest
+            jianyunkai/go-ldap-admin:${{ steps.date.outputs.today }}
 
       # 镜像推送到 阿里云仓库
       - name: Login to the Ali Registry
